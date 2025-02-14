@@ -40,6 +40,8 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Set a global random seed to test for consistent results across runs.
+# np.random.seed(42)
 
 def init_lattice(lattice_length):
     """
