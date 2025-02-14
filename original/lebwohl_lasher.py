@@ -132,7 +132,7 @@ def plot_lattice(lattice, lattice_length, plot_flag):
 
         # Set the colour of each cell.
         # Normalise the colour map.
-        cols = np.zeros_like(lattice)
+        colours = np.zeros_like(lattice)
         norm = plt.Normalize(vmin=0, vmax=1)
 
     # Set the options for the quiver plot.
