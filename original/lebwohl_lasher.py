@@ -60,9 +60,7 @@ def init_lattice(lattice_length):
     """
 
     # Generate the square lattice.
-    lattice = np.random.random_sample((lattice_length, lattice_length)) * 2.0 * np.pi
-    
-    return lattice 
+    return np.random.random_sample((lattice_length, lattice_length)) * 2.0 * np.pi
 
 
 def plot_lattice(lattice, lattice_length, plot_flag):
@@ -149,7 +147,7 @@ def plot_lattice(lattice, lattice_length, plot_flag):
     plt.show()
 
 
-def save_data(lattice, lattice_length, num_steps, temperature, ratio, energy, order, runtime):
+def save_data(lattice_length, num_steps, temperature, ratio, energy, order, runtime):
     """
     Saves the total energy, order parameter and acceptance ratio of the lattice 
     at each Monte Carlo step in the simulation to a text file. The parameters 
@@ -328,7 +326,7 @@ def calculate_order(lattice, lattice_length):
     kronecker_delta = np.eye(3,3)
     
     # Generate a 3D unit vector for each cell in the lattice.
-    lab = np.vstack((np.cos(lattice), np.sin(lattice), np.zeros_like(lattice))).reshape(3, lattice_length, lattice_length)
+    l_ab = np.vstack((np.cos(lattice), np.sin(lattice), np.zeros_like(lattice))).reshape(3, lattice_length, lattice_length)
 
     # Loop over each dimension.
     for a in range(3):
@@ -337,7 +335,7 @@ def calculate_order(lattice, lattice_length):
             for i in range(lattice_length):
                 for j in range(lattice_length):
                     # Calculate the order tensor term.
-                    order_tensor[a, b] += (3 * lab[a, i, j] * lab[b, i, j]) - kronecker_delta[a, b]
+                    order_tensor[a, b] += (3 * l_ab[a, i, j] * l_ab[b, i, j]) - kronecker_delta[a, b]
    
     # Normalise the order tensor.
     # Calculate the eigenvalues and eigenvectors of the order tensor.
@@ -403,6 +401,8 @@ def monte_carlo_step(lattice, lattice_length, temperature):
             
             # Change the orientation of the cell.
             lattice[x_pos, y_pos] += angle
+
+            # Calculate the energy of the cell after the orientation change.
             energy_after = cell_energy(lattice, lattice_length, x_pos, y_pos)
             
             # If energy after the orientation change is lower, accept the change.
@@ -488,7 +488,7 @@ def main(program_name, num_steps, lattice_length, temperature, plot_flag):
     print(f"{program_name}: Size: {lattice_length:d}, Steps: {num_steps:d}, T*: {temperature:5.3f}: Order: {order[num_steps - 1]:5.3f}, Time: {runtime:8.6f} s")
 
     # Generate the output data file.
-    save_data(lattice, lattice_length, num_steps, temperature, ratio, energy, order, runtime)
+    save_data(lattice_length, num_steps, temperature, ratio, energy, order, runtime)
 
     # Plot the final lattice.
     plot_lattice(lattice, lattice_length, plot_flag)
