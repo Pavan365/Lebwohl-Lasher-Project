@@ -268,7 +268,7 @@ def cell_energy(lattice, lattice_length, x_pos, y_pos):
     return energy
 
 
-def total_energy(lattice, lattice_length):
+def total_energy(lattice):
     """
     Calculates the total reduced energy of the lattice.
 
@@ -278,9 +278,6 @@ def total_energy(lattice, lattice_length):
     ----------
     lattice : numpy.ndarray, float(lattice_length, lattice_length)
       The array representing the cells in square lattice.
-
-    lattice_length : int
-      The side length of the square lattice.
     
     Returns
     -------
@@ -291,13 +288,23 @@ def total_energy(lattice, lattice_length):
     # Create a variable to store the total energy.
     energy = 0.0
 
-    # Sum over the energy of each cell in the lattice.
-    for i in range(lattice_length):
-        for j in range(lattice_length):
-            # Calculate the energy of the cell.
-            energy += cell_energy(lattice, lattice_length, i, j)
+    # Calculate the energy contribution from the cells to the right.
+    angles = lattice - np.roll(lattice, shift=-1, axis=1)
+    energy += np.cos(angles) ** 2
 
-    return energy
+    # Calculate the energy contribution from the cells to the left.
+    angles = lattice - np.roll(lattice, shift=1, axis=1)
+    energy += np.cos(angles) ** 2
+
+    # Calculate the energy contribution from the cells above.
+    angles = lattice - np.roll(lattice, shift=-1, axis=0)
+    energy += np.cos(angles) ** 2
+
+    # Calculate the energy contribution from the cells below.
+    angles = lattice - np.roll(lattice, shift=1, axis=0)
+    energy += np.cos(angles) ** 2
+
+    return np.sum((4 - (3 * energy)) * 0.5)
 
 
 def calculate_order(lattice, lattice_length):
@@ -460,7 +467,7 @@ def main(program_name, num_steps, lattice_length, temperature, plot_flag):
     ratio = np.zeros(num_steps + 1, dtype=np.float64)
 
     # Calculate the initial energy and order of the lattice.
-    energy[0] = total_energy(lattice, lattice_length)
+    energy[0] = total_energy(lattice)
     order[0] = calculate_order(lattice, lattice_length)
 
     # Set the initial acceptance ratio to 0.5, which is the "ideal" value.
@@ -476,7 +483,7 @@ def main(program_name, num_steps, lattice_length, temperature, plot_flag):
         ratio[i] = monte_carlo_step(lattice, lattice_length, temperature)
 
         # Calculate the total energy and order parameter of the lattice.
-        energy[i] = total_energy(lattice, lattice_length)
+        energy[i] = total_energy(lattice)
         order[i] = calculate_order(lattice, lattice_length)
 
     # End the timer.
