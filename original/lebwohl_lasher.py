@@ -107,12 +107,8 @@ def plot_lattice(lattice, lattice_length, plot_flag):
         mpl.rc("image", cmap="rainbow")
 
         # Calculate the colour of each cell in the lattice.
-        for i in range(lattice_length):
-            for j in range(lattice_length):
-                # Calculate the energy of the cell.
-                colours[i,j] = cell_energy(lattice, lattice_length, i, j)
-        
         # Normalise the colour map according to the minimum and maximum energy.
+        colours = lattice_energies(lattice)
         norm = plt.Normalize(colours.min(), colours.max())
 
     # If "plot_flag" is 2, colour the quivers according to the angle of the cells.
@@ -207,71 +203,11 @@ def save_data(lattice_length, num_steps, temperature, ratio, energy, order, runt
     file_out.close()
 
 
-def cell_energy(lattice, lattice_length, x_pos, y_pos):
+def lattice_energies(lattice, total=False):
     """
-    Calculates the reduced energy of a single cell in the square lattice taking 
-    into account periodic boundary conditions. Equation 1 in the notes is used 
-    to calculate the energy which involves summing over contributions from the 
-    neighbouring cells.
-
-    + U_{reduced] = U / ε   where ε is set to 1.
-
-    Parameters
-    ----------
-    lattice : numpy.ndarray, float(lattice_length, lattice_length)
-      The array representing the cells in the square lattice.
-
-    lattice_length : int
-      The side length of the square lattice.
-
-    x_pos : int
-      The x-position of the cell in the square lattice.
-
-    y_pos : int
-      The y-position of the cell in the square lattice.
-
-    Returns
-    -------
-    energy : float
-      The reduced energy of the cell.
-    """
-
-    # Create a variable to store the energy.
-    energy = 0.0
-
-    # Store the positions of the neighbouring cells in the x-direction.
-    # Take into account wraparound.
-    x_pos_right = (x_pos + 1) % lattice_length
-    x_pos_left = (x_pos - 1) % lattice_length
+    Calculates the reduced energy of all the cells in the lattice. The "total" 
+    flag can be set to True to return the total reduced energy of the lattice.
     
-    # Store the positions of the neighbouring cells in the y-direction.
-    # Take into account wraparound.
-    y_pos_above = (y_pos + 1) % lattice_length
-    y_pos_below = (y_pos - 1) % lattice_length
-
-    # Calculate the energy contribution from the cell to the right.
-    angle = lattice[x_pos, y_pos] - lattice[x_pos_right, y_pos]
-    energy += 0.5 * (1.0 - (3.0 * (np.cos(angle) ** 2)))
-
-    # Calculate the energy contribution from the cell to the left.
-    angle = lattice[x_pos, y_pos] - lattice[x_pos_left, y_pos]
-    energy += 0.5 * (1.0 - (3.0 * (np.cos(angle) ** 2)))
-
-    # Calculate the energy contribution from the cell above.
-    angle = lattice[x_pos, y_pos] - lattice[x_pos, y_pos_above]
-    energy += 0.5 * (1.0 - (3.0 * (np.cos(angle) ** 2)))
-
-    # Calculate the energy contribution from the cell below.
-    angle = lattice[x_pos, y_pos] - lattice[x_pos, y_pos_below]
-    energy += 0.5 * (1.0 - (3.0 * (np.cos(angle) ** 2)))
-    
-    return energy
-
-
-def total_energy(lattice):
-    """
-    Calculates the total reduced energy of the lattice.
-
     + E_{reduced] = E / ε   where ε is set to 1.
 
     Parameters
@@ -279,32 +215,48 @@ def total_energy(lattice):
     lattice : numpy.ndarray, float(lattice_length, lattice_length)
       The array representing the cells in square lattice.
     
+    total : boolean, default = False
+      A flag to indicate whether to return the total reduced energy of the 
+      lattice (total = True) instead of the array containing the reduced energy 
+      of the cells in the lattice (total = False).
+
     Returns
     -------
-    energy : float
-      The total reduced energy of the lattice.
+    energies : numpy.ndarray, float(lattice_length, lattice_length)
+      The array containing the reduced energy of each cell in the lattice. If 
+      the "total" flag is False.
+
+    float
+      The total reduced energy of the lattice. If the "total" flag is True.
     """
 
-    # Create a variable to store the total energy.
-    energy = 0.0
-
-    # Calculate the energy contribution from the cells to the right.
+    # Calculate the energy contributions from the cells to the right.
     angles = lattice - np.roll(lattice, shift=-1, axis=1)
-    energy += np.cos(angles) ** 2
+    energies = np.cos(angles) ** 2
 
-    # Calculate the energy contribution from the cells to the left.
+    # Calculate the energy contributions from the cells to the left.
     angles = lattice - np.roll(lattice, shift=1, axis=1)
-    energy += np.cos(angles) ** 2
+    energies += np.cos(angles) ** 2
 
-    # Calculate the energy contribution from the cells above.
+    # Calculate the energy contributions from the cells above.
     angles = lattice - np.roll(lattice, shift=-1, axis=0)
-    energy += np.cos(angles) ** 2
+    energies += np.cos(angles) ** 2
 
-    # Calculate the energy contribution from the cells below.
+    # Calculate the energy contributions from the cells below.
     angles = lattice - np.roll(lattice, shift=1, axis=0)
-    energy += np.cos(angles) ** 2
+    energies += np.cos(angles) ** 2
 
-    return np.sum((4 - (3 * energy)) * 0.5)
+    # Calculate the energies.
+    energies = (4 - (3 * energies)) * 0.5
+
+    # If the "total" flag is False.
+    # Return the array containing the reduced energy of each cell in the lattice. 
+    if not total:
+        return energies
+
+    # Otherwise, return the total energy of the lattice.
+    else:
+      return np.sum(energies)
 
 
 def calculate_order(lattice, lattice_length):
@@ -357,14 +309,76 @@ def calculate_order(lattice, lattice_length):
     return eigenvalues.max()
 
 
+def mc_step_worker(lattice, temperature, angles, mc_test_nums, mask):
+    """
+    A worker function for the "monte_carlo_step" function. This function 
+    applies the Monte Carlo step on cells in the lattice that are selected 
+    using the given mask. The function returns the number of accepted cell 
+    orientation changes.
+    
+    Parameters
+    ----------
+    lattice : numpy.ndarray, float(lattice_length, lattice_length)
+      The array representing the cells in the square lattice.
+
+    temperature : float
+      The reduced temperature, with a range between 0 and 2.
+
+    angles : numpy.ndarray, float(lattice_length, lattice_length)
+      The array containing the angles to make the cell orientation changes. 
+
+    mc_test_nums : numpy.ndarray, float(lattice_length, lattice_length)
+      The array containing the numbers to perform the Monte Carlo test with.
+
+    mask : numpy.ndarray, bool(lattice_length, lattice_length)
+      The array which selects the cells to perform the Monte Carlo step on. It 
+      should be a boolean mask.
+    
+    Returns
+    -------
+    int
+        The number of accepted orientation changes.
+    """
+
+    # Calculate the energy of the cells before the orientation changes.
+    e_before = lattice_energies(lattice)[mask]
+
+    # Perform the orientation changes.
+    lattice[mask] += angles[mask]
+
+    # Calculate the energy of the cells after the orientation changes.
+    e_after = lattice_energies(lattice)[mask]
+
+    # Get the cells whose orientation change is accepted from a decrease in energy.
+    # This is a boolean mask. 
+    energy_accepted_mask = e_after <= e_before
+
+    # Calculate the Boltzmann factor of the cells.
+    boltzmann = np.exp(-(e_after - e_before) / temperature)
+
+    # Get the cells whose orientation change is accepted from the Monte Carlo test.
+    # This is a boolean mask.
+    boltzmann_accepted_mask = boltzmann >= mc_test_nums[mask]
+
+    # Get the cells whose orientation change is accepted overall. 
+    # This is a boolean mask.
+    accepted_mask = np.logical_or(energy_accepted_mask, boltzmann_accepted_mask)
+
+    # Revert the cells whose orientation change is not accepted.
+    cells_final_state = lattice[mask]
+    cells_final_state[~accepted_mask] -= angles[mask][~accepted_mask]
+
+    lattice[mask] = cells_final_state
+
+    return accepted_mask.sum()
+
+
 def monte_carlo_step(lattice, lattice_length, temperature):
     """
     Performs a Monte Carlo step which attempts to change the orientation of 
-    each cell in the lattice once on average. The reduced temperature is used 
-    in the calculations. The function returns the acceptance ratio of the Monte 
-    Carlo step which represents the fraction of successful cell orientation 
-    changes. The aim is to keep the acceptance ratio around 0.5 for an optimal 
-    simulation.
+    each cell in the lattice. The reduced temperature is used in the 
+    calculations. The function returns the acceptance ratio of the Monte Carlo 
+    step which represents the fraction of successful cell orientation changes.
 
     + T_{reduced} = kT / ε
 
@@ -387,55 +401,23 @@ def monte_carlo_step(lattice, lattice_length, temperature):
 
     # Calculate the standard deviation of the distribution for angle changes.
     angle_std = temperature + 0.1
-
-    # Create a variable to store the number of accepted to changes.
-    num_accepted = 0
-
-    # Generate the positions in the lattice to visit.
-    x_positions = np.random.randint(0, high=lattice_length, size=(lattice_length, lattice_length))
-    y_positions = np.random.randint(0, high=lattice_length, size=(lattice_length, lattice_length))
     
-    # Generate the random angles for cell orientations.
+    # Generate the random angles for cell orientation changes.
     angles = np.random.normal(scale=angle_std, size=(lattice_length, lattice_length))
+    
+    # Generate random, uniform distributed, numbers for the Monte Carlo test.
+    mc_test_nums = np.random.uniform(size=(lattice_length, lattice_length))
 
-    # Attempt to change the orientation of each cell in the lattice.
-    for i in range(lattice_length):
-        for j in range(lattice_length):
-            # Get x and y position of the cell.
-            x_pos = x_positions[i, j]
-            y_pos = y_positions[i, j]
+    # Create a checkerboard mask that selects cells which do not neighbour each other.
+    checkerboard_mask = np.indices((lattice_length, lattice_length)).sum(axis=0) % 2 == 0
 
-            # Get the random angle.
-            angle = angles[i, j]
+    # Perform the Monte Carlo step on the "white" squares/cells.
+    num_accepted_one = mc_step_worker(lattice, temperature, angles, mc_test_nums, checkerboard_mask) 
 
-            # Calculate the energy of the cell before the orientation change.
-            energy_before = cell_energy(lattice, lattice_length, x_pos, y_pos)
-            
-            # Change the orientation of the cell.
-            lattice[x_pos, y_pos] += angle
+    # Perform the Monte Carlo step on the "black" squares/cells.
+    num_accepted_two = mc_step_worker(lattice, temperature, angles, mc_test_nums, ~checkerboard_mask)
 
-            # Calculate the energy of the cell after the orientation change.
-            energy_after = cell_energy(lattice, lattice_length, x_pos, y_pos)
-            
-            # If energy after the orientation change is lower, accept the change.
-            if energy_after <= energy_before:
-                num_accepted += 1
-            
-            # Otherwise, perform the Monte Carlo test.
-            else:
-                # Calculate the Boltzmann factor.
-                boltzmann = np.exp(-(energy_after - energy_before) / temperature)
-
-                # If the Boltzmann factor is greater than a random (uniform) number.
-                # Accept the orientation change.
-                if boltzmann >= np.random.uniform(0.0, 1.0):
-                    num_accepted += 1
-                
-                # Otherwise, undo the orientation change.
-                else:
-                    lattice[x_pos, y_pos] -= angle
-
-    return num_accepted / (lattice_length * lattice_length)
+    return (num_accepted_one + num_accepted_two) / (lattice_length * lattice_length)
 
 
 def main(program_name, num_steps, lattice_length, temperature, plot_flag):
@@ -472,7 +454,7 @@ def main(program_name, num_steps, lattice_length, temperature, plot_flag):
     ratio = np.zeros(num_steps + 1, dtype=np.float64)
 
     # Calculate the initial energy and order of the lattice.
-    energy[0] = total_energy(lattice)
+    energy[0] = lattice_energies(lattice, True)
     order[0] = calculate_order(lattice, lattice_length)
 
     # Set the initial acceptance ratio to 0.5, which is the "ideal" value.
@@ -488,7 +470,7 @@ def main(program_name, num_steps, lattice_length, temperature, plot_flag):
         ratio[i] = monte_carlo_step(lattice, lattice_length, temperature)
 
         # Calculate the total energy and order parameter of the lattice.
-        energy[i] = total_energy(lattice)
+        energy[i] = lattice_energies(lattice, True)
         order[i] = calculate_order(lattice, lattice_length)
 
     # End the timer.
