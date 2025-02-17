@@ -303,7 +303,7 @@ def calculate_order(lattice, lattice_length):
     order_tensor = order_tensor / (2 * lattice_size)
     
     # Calculate the eigenvalues of the order tensor.
-    # Use the "np.lingalg.eigh" as the order tensor is symmetric.
+    # Use the "np.linalg.eigh" as the order tensor is symmetric.
     eigenvalues = np.linalg.eigh(order_tensor)[0]
 
     return eigenvalues.max()
@@ -341,20 +341,20 @@ def mc_step_worker(lattice, temperature, angles, mc_test_nums, mask):
     """
 
     # Calculate the energy of the cells before the orientation changes.
-    e_before = lattice_energies(lattice)[mask]
+    energy_before = lattice_energies(lattice)[mask]
 
     # Perform the orientation changes.
     lattice[mask] += angles[mask]
 
     # Calculate the energy of the cells after the orientation changes.
-    e_after = lattice_energies(lattice)[mask]
+    energy_after = lattice_energies(lattice)[mask]
 
     # Get the cells whose orientation change is accepted from a decrease in energy.
     # This is a boolean mask. 
-    energy_accepted_mask = e_after <= e_before
+    energy_accepted_mask = energy_after <= energy_before
 
     # Calculate the Boltzmann factor of the cells.
-    boltzmann = np.exp(-(e_after - e_before) / temperature)
+    boltzmann = np.exp(-(energy_after - energy_before) / temperature)
 
     # Get the cells whose orientation change is accepted from the Monte Carlo test.
     # This is a boolean mask.
