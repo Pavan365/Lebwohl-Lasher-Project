@@ -60,9 +60,7 @@ def init_lattice(lattice_length):
     """
 
     # Generate the square lattice.
-    lattice = np.random.random_sample((lattice_length, lattice_length)) * 2.0 * np.pi
-    
-    return lattice 
+    return np.random.random_sample((lattice_length, lattice_length)) * 2.0 * np.pi
 
 
 def plot_lattice(lattice, lattice_length, plot_flag):
@@ -149,7 +147,7 @@ def plot_lattice(lattice, lattice_length, plot_flag):
     plt.show()
 
 
-def save_data(lattice, lattice_length, num_steps, temperature, ratio, energy, order, runtime):
+def save_data(lattice_length, num_steps, temperature, ratio, energy, order, runtime):
     """
     Saves the total energy, order parameter and acceptance ratio of the lattice 
     at each Monte Carlo step in the simulation to a text file. The parameters 
@@ -253,21 +251,21 @@ def cell_energy(lattice, lattice_length, x_pos, y_pos):
 
     # Calculate the energy contribution from the cell to the right.
     angle = lattice[x_pos, y_pos] - lattice[x_pos_right, y_pos]
-    energy += 0.5 * (1.0 - (3.0 * (np.cos(angle) ** 2)))
+    energy += np.cos(angle) ** 2
 
     # Calculate the energy contribution from the cell to the left.
     angle = lattice[x_pos, y_pos] - lattice[x_pos_left, y_pos]
-    energy += 0.5 * (1.0 - (3.0 * (np.cos(angle) ** 2)))
+    energy += np.cos(angle) ** 2
 
     # Calculate the energy contribution from the cell above.
     angle = lattice[x_pos, y_pos] - lattice[x_pos, y_pos_above]
-    energy += 0.5 * (1.0 - (3.0 * (np.cos(angle) ** 2)))
+    energy += np.cos(angle) ** 2
 
     # Calculate the energy contribution from the cell below.
     angle = lattice[x_pos, y_pos] - lattice[x_pos, y_pos_below]
-    energy += 0.5 * (1.0 - (3.0 * (np.cos(angle) ** 2)))
+    energy += np.cos(angle) ** 2
     
-    return energy
+    return (4 - (3 * energy)) * 0.5
 
 
 def total_energy(lattice, lattice_length):
@@ -322,13 +320,13 @@ def calculate_order(lattice, lattice_length):
     """
 
     # Create an array to store the order tensor.
-    order_tensor = np.zeros((3,3))
+    order_tensor = np.zeros((3, 3))
 
     # Create an array to represent the Kronecker delta.
-    kronecker_delta = np.eye(3,3)
+    kronecker_delta = np.eye(3, 3)
     
     # Generate a 3D unit vector for each cell in the lattice.
-    lab = np.vstack((np.cos(lattice), np.sin(lattice), np.zeros_like(lattice))).reshape(3, lattice_length, lattice_length)
+    l_ab = np.vstack((np.cos(lattice), np.sin(lattice), np.zeros_like(lattice))).reshape(3, lattice_length, lattice_length)
 
     # Loop over each dimension.
     for a in range(3):
@@ -337,12 +335,12 @@ def calculate_order(lattice, lattice_length):
             for i in range(lattice_length):
                 for j in range(lattice_length):
                     # Calculate the order tensor term.
-                    order_tensor[a, b] += (3 * lab[a, i, j] * lab[b, i, j]) - kronecker_delta[a, b]
+                    order_tensor[a, b] += (3 * l_ab[a, i, j] * l_ab[b, i, j]) - kronecker_delta[a, b]
    
     # Normalise the order tensor.
     # Calculate the eigenvalues and eigenvectors of the order tensor.
     order_tensor = order_tensor / (2 * lattice_length * lattice_length)
-    eigenvalues, eigenvectors = np.linalg.eig(order_tensor)
+    eigenvalues = np.linalg.eig(order_tensor)[0]
 
     return eigenvalues.max()
 
@@ -353,8 +351,7 @@ def monte_carlo_step(lattice, lattice_length, temperature):
     each cell in the lattice once on average. The reduced temperature is used 
     in the calculations. The function returns the acceptance ratio of the Monte 
     Carlo step which represents the fraction of successful cell orientation 
-    changes. The aim is to keep the acceptance ratio around 0.5 for an optimal 
-    simulation.
+    changes.
 
     + T_{reduced} = kT / ε
 
@@ -388,6 +385,9 @@ def monte_carlo_step(lattice, lattice_length, temperature):
     # Generate the random angles for cell orientations.
     angles = np.random.normal(scale=angle_std, size=(lattice_length, lattice_length))
 
+    # Generate random, uniform distributed, numbers for the Monte Carlo test.
+    mc_test_nums = np.random.uniform(size=(lattice_length, lattice_length))
+
     # Attempt to change the orientation of each cell in the lattice.
     for i in range(lattice_length):
         for j in range(lattice_length):
@@ -403,6 +403,8 @@ def monte_carlo_step(lattice, lattice_length, temperature):
             
             # Change the orientation of the cell.
             lattice[x_pos, y_pos] += angle
+
+            # Calculate the energy of the cell after the orientation change.
             energy_after = cell_energy(lattice, lattice_length, x_pos, y_pos)
             
             # If energy after the orientation change is lower, accept the change.
@@ -416,7 +418,7 @@ def monte_carlo_step(lattice, lattice_length, temperature):
 
                 # If the Boltzmann factor is greater than a random (uniform) number.
                 # Accept the orientation change.
-                if boltzmann >= np.random.uniform(0.0, 1.0):
+                if boltzmann >= mc_test_nums[i, j]:
                     num_accepted += 1
                 
                 # Otherwise, undo the orientation change.
@@ -488,7 +490,7 @@ def main(program_name, num_steps, lattice_length, temperature, plot_flag):
     print(f"{program_name}: Size: {lattice_length:d}, Steps: {num_steps:d}, T*: {temperature:5.3f}: Order: {order[num_steps - 1]:5.3f}, Time: {runtime:8.6f} s")
 
     # Generate the output data file.
-    save_data(lattice, lattice_length, num_steps, temperature, ratio, energy, order, runtime)
+    save_data(lattice_length, num_steps, temperature, ratio, energy, order, runtime)
 
     # Plot the final lattice.
     plot_lattice(lattice, lattice_length, plot_flag)
