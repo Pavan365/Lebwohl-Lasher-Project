@@ -270,6 +270,7 @@ def cell_energy(lattice, lattice_length, x_pos, y_pos):
     return (4 - (3 * energy)) * 0.5
 
 
+@numba.njit(cache=True)
 def total_energy(lattice, lattice_length):
     """
     Calculates the total reduced energy of the lattice.
