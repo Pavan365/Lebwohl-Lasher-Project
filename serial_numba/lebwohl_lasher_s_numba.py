@@ -38,6 +38,7 @@ import time
 # Import 3rd party libraries. 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+import numba
 import numpy as np
 
 # Set a global random seed to test for consistent results across runs.
@@ -207,6 +208,7 @@ def save_data(lattice_length, num_steps, temperature, ratio, energy, order, runt
     file_out.close()
 
 
+@numba.njit(cache=True)
 def cell_energy(lattice, lattice_length, x_pos, y_pos):
     """
     Calculates the reduced energy of a single cell in the square lattice taking 
