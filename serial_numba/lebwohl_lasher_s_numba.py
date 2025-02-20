@@ -356,6 +356,7 @@ def calculate_order(lattice, lattice_length):
     return eigenvalues.max()
 
 
+@numba.njit(cache=True)
 def monte_carlo_step(lattice, lattice_length, temperature):
     """
     Performs a Monte Carlo step which attempts to change the orientation of 
@@ -394,10 +395,10 @@ def monte_carlo_step(lattice, lattice_length, temperature):
     y_positions = np.random.randint(0, high=lattice_length, size=(lattice_length, lattice_length))
     
     # Generate the random angles for cell orientations.
-    angles = np.random.normal(scale=angle_std, size=(lattice_length, lattice_length))
+    angles = np.random.normal(0, scale=angle_std, size=(lattice_length, lattice_length))
 
     # Generate random, uniform distributed, numbers for the Monte Carlo test.
-    mc_test_nums = np.random.uniform(size=(lattice_length, lattice_length))
+    mc_test_nums = np.random.uniform(0, 1.0, size=(lattice_length, lattice_length))
 
     # Attempt to change the orientation of each cell in the lattice.
     for i in range(lattice_length):
