@@ -303,6 +303,7 @@ def total_energy(lattice, lattice_length):
     return energy
 
 
+@numba.njit(cache=True)
 def calculate_order(lattice, lattice_length):
     """
     Calculates the order parameter of the square lattice using the order tensor 
@@ -325,25 +326,32 @@ def calculate_order(lattice, lattice_length):
     # Create an array to store the order tensor.
     order_tensor = np.zeros((3, 3))
 
-    # Create an array to represent the Kronecker delta.
-    kronecker_delta = np.eye(3, 3)
-    
-    # Generate a 3D unit vector for each cell in the lattice.
-    l_ab = np.vstack((np.cos(lattice), np.sin(lattice), np.zeros_like(lattice))).reshape(3, lattice_length, lattice_length)
+    # Generate a 2D unit vector for each cell in the lattice.
+    l_ab = np.vstack((np.cos(lattice), np.sin(lattice))).reshape(2, lattice_length, lattice_length)
 
     # Loop over each dimension.
-    for a in range(3):
-        for b in range(3):
+    for a in range(2):
+        for b in range(2):
             # Loop through each cell in the lattice.
             for i in range(lattice_length):
                 for j in range(lattice_length):
                     # Calculate the order tensor term.
-                    order_tensor[a, b] += (3 * l_ab[a, i, j] * l_ab[b, i, j]) - kronecker_delta[a, b]
+                    order_tensor[a, b] += 3 * l_ab[a, i, j] * l_ab[b, i, j]
+
+    # Calculate the size of the lattice.
+    lattice_size = lattice_length * lattice_length
+
+    # Calculate the diagonal terms.
+    order_tensor[0, 0] -= lattice_size
+    order_tensor[1, 1] -= lattice_size
+    order_tensor[2, 2] = -lattice_size
    
     # Normalise the order tensor.
-    # Calculate the eigenvalues and eigenvectors of the order tensor.
-    order_tensor = order_tensor / (2 * lattice_length * lattice_length)
-    eigenvalues = np.linalg.eig(order_tensor)[0]
+    order_tensor = order_tensor / (2 * lattice_size)
+
+    # Calculate the eigenvalues of the order tensor.
+    # Use the "np.linalg.eigh" as the order tensor is symmetric.
+    eigenvalues = np.linalg.eigh(order_tensor)[0]
 
     return eigenvalues.max()
 
