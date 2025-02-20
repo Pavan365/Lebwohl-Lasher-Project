@@ -325,28 +325,30 @@ def calculate_order(lattice, lattice_length):
 
     # Create an array to store the order tensor.
     order_tensor = np.zeros((3, 3))
-    
+
     # Generate a 2D unit vector for each cell in the lattice.
     l_ab = np.vstack((np.cos(lattice), np.sin(lattice))).reshape(2, lattice_length, lattice_length)
+
+    # Loop over each dimension.
+    for a in range(2):
+        for b in range(2):
+            # Loop through each cell in the lattice.
+            for i in range(lattice_length):
+                for j in range(lattice_length):
+                    # Calculate the order tensor term.
+                    order_tensor[a, b] += 3 * l_ab[a, i, j] * l_ab[b, i, j]
 
     # Calculate the size of the lattice.
     lattice_size = lattice_length * lattice_length
 
-    # Calculate the x-x and y-y (diagonals) contributions to the order tensor.
-    diagonals = 3 * l_ab * l_ab
-
-    order_tensor[0, 0] = np.sum(diagonals[0]) - lattice_size
-    order_tensor[1, 1] = np.sum(diagonals[1]) - lattice_size
-
-    # Calculate the off-diagonal contributions to the order tensor.
-    order_tensor[0, 1] = order_tensor[1, 0] = np.sum(3 * l_ab[0] * l_ab[1])
-
-    # Calculate the z-z contribution 
+    # Calculate the diagonal terms.
+    order_tensor[0, 0] -= lattice_size
+    order_tensor[1, 1] -= lattice_size
     order_tensor[2, 2] = -lattice_size
-
+   
     # Normalise the order tensor.
     order_tensor = order_tensor / (2 * lattice_size)
-    
+
     # Calculate the eigenvalues of the order tensor.
     # Use the "np.linalg.eigh" as the order tensor is symmetric.
     eigenvalues = np.linalg.eigh(order_tensor)[0]
