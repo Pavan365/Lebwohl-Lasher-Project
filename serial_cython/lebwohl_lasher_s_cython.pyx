@@ -4,7 +4,7 @@
 cimport cython
 import numpy as np
 cimport numpy as cnp
-from libc.math cimport cos, sin
+from libc.math cimport cos, exp, sin
 
 # Initialise the Cython NumPy API.
 cnp.import_array()
@@ -184,3 +184,107 @@ def calculate_order(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_lengt
     cdef cnp.ndarray[cnp.double_t, ndim=1] eigenvalues = np.linalg.eigh(order_tensor)[0]
 
     return eigenvalues.max()
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True)
+def monte_carlo_step(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_length, double temperature):
+    """
+    Performs a Monte Carlo step which attempts to change the orientation of 
+    each cell in the lattice once on average. The reduced temperature is used 
+    in the calculations. The function returns the acceptance ratio of the Monte 
+    Carlo step which represents the fraction of successful cell orientation 
+    changes. The aim is to keep the acceptance ratio around 0.5 for an optimal 
+    simulation.
+
+    + T_{reduced} = kT / ε
+
+    Parameters
+    ----------
+    lattice : numpy.ndarray, float(lattice_length, lattice_length)
+      The array representing the cells in the square lattice.
+
+    lattice_length : int
+      The side length of the square lattice.
+
+    temperature : float
+      The reduced temperature, with a range between 0 and 2.
+
+    Returns
+    -------
+    float
+      The acceptance ratio for the Monte Carlo step.
+    """
+
+    # Calculate the standard deviation of the distribution for angle changes.
+    cdef float angle_std = temperature + 0.1
+
+    # Create a variable to store the number of accepted to changes.
+    cdef int num_accepted = 0
+
+    # Generate the positions in the lattice to visit.
+    cdef cnp.ndarray[int, ndim=2] x_positions = np.random.randint(0, high=lattice_length, size=(lattice_length, lattice_length), dtype=np.int32)
+    cdef cnp.ndarray[int, ndim=2] y_positions = np.random.randint(0, high=lattice_length, size=(lattice_length, lattice_length), dtype=np.int32)
+    
+    # Generate the random angles for cell orientations.
+    cdef cnp.ndarray[cnp.double_t, ndim=2] angles = np.random.normal(scale=angle_std, size=(lattice_length, lattice_length))
+
+    # Generate random, uniform distributed, numbers for the Monte Carlo test.
+    cdef cnp.ndarray[cnp.double_t, ndim=2] mc_test_nums = np.random.uniform(size=(lattice_length, lattice_length))
+
+    # Create memory-views to the arrays.
+    cdef int[:, :] x_positions_view = x_positions
+    cdef int[:, :] y_positions_view = y_positions
+    
+    cdef double[:, :] angles_view = angles
+    cdef double[:, :] mc_test_nums_view = mc_test_nums
+
+    # Create a memory-view to the lattice.
+    cdef double[:, :] lattice_view = lattice
+
+    # Define the iterating variables.
+    cdef int i, j
+
+    # Define variables used inside the loop.
+    cdef int x_pos, y_pos
+    cdef double angle, energy_before, energy_after, boltzmann
+
+    # Attempt to change the orientation of each cell in the lattice.
+    for i in range(lattice_length):
+        for j in range(lattice_length):
+            # Get x and y position of the cell.
+            x_pos = x_positions_view[i, j]
+            y_pos = y_positions_view[i, j]
+
+            # Get the random angle.
+            angle = angles_view[i, j]
+
+            # Calculate the energy of the cell before the orientation change.
+            energy_before = cell_energy(lattice, lattice_length, x_pos, y_pos)
+            
+            # Change the orientation of the cell.
+            lattice_view[x_pos, y_pos] += angle
+
+            # Calculate the energy of the cell after the orientation change.
+            energy_after = cell_energy(lattice, lattice_length, x_pos, y_pos)
+            
+            # If energy after the orientation change is lower, accept the change.
+            if energy_after <= energy_before:
+                num_accepted += 1
+            
+            # Otherwise, perform the Monte Carlo test.
+            else:
+                # Calculate the Boltzmann factor.
+                boltzmann = exp(-(energy_after - energy_before) / temperature)
+
+                # If the Boltzmann factor is greater than a random (uniform) number.
+                # Accept the orientation change.
+                if boltzmann >= mc_test_nums_view[i, j]:
+                    num_accepted += 1
+                
+                # Otherwise, undo the orientation change.
+                else:
+                    lattice_view[x_pos, y_pos] -= angle
+
+    return (<double> num_accepted) / (lattice_length * lattice_length)

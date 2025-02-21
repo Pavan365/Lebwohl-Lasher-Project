@@ -210,90 +210,6 @@ def save_data(lattice_length, num_steps, temperature, ratio, energy, order, runt
     file_out.close()
 
 
-def monte_carlo_step(lattice, lattice_length, temperature):
-    """
-    Performs a Monte Carlo step which attempts to change the orientation of 
-    each cell in the lattice once on average. The reduced temperature is used 
-    in the calculations. The function returns the acceptance ratio of the Monte 
-    Carlo step which represents the fraction of successful cell orientation 
-    changes. The aim is to keep the acceptance ratio around 0.5 for an optimal 
-    simulation.
-
-    + T_{reduced} = kT / ε
-
-    Parameters
-    ----------
-    lattice : numpy.ndarray, float(lattice_length, lattice_length)
-      The array representing the cells in the square lattice.
-
-    lattice_length : int
-      The side length of the square lattice.
-
-    temperature : float
-      The reduced temperature, with a range between 0 and 2.
-
-    Returns
-    -------
-    float
-      The acceptance ratio for the Monte Carlo step.
-    """
-
-    # Calculate the standard deviation of the distribution for angle changes.
-    angle_std = temperature + 0.1
-
-    # Create a variable to store the number of accepted to changes.
-    num_accepted = 0
-
-    # Generate the positions in the lattice to visit.
-    x_positions = np.random.randint(0, high=lattice_length, size=(lattice_length, lattice_length))
-    y_positions = np.random.randint(0, high=lattice_length, size=(lattice_length, lattice_length))
-    
-    # Generate the random angles for cell orientations.
-    angles = np.random.normal(scale=angle_std, size=(lattice_length, lattice_length))
-
-    # Generate random, uniform distributed, numbers for the Monte Carlo test.
-    mc_test_nums = np.random.uniform(size=(lattice_length, lattice_length))
-
-    # Attempt to change the orientation of each cell in the lattice.
-    for i in range(lattice_length):
-        for j in range(lattice_length):
-            # Get x and y position of the cell.
-            x_pos = x_positions[i, j]
-            y_pos = y_positions[i, j]
-
-            # Get the random angle.
-            angle = angles[i, j]
-
-            # Calculate the energy of the cell before the orientation change.
-            energy_before = lebwohl_lasher_s_cython.cell_energy(lattice, lattice_length, x_pos, y_pos)
-            
-            # Change the orientation of the cell.
-            lattice[x_pos, y_pos] += angle
-
-            # Calculate the energy of the cell after the orientation change.
-            energy_after = lebwohl_lasher_s_cython.cell_energy(lattice, lattice_length, x_pos, y_pos)
-            
-            # If energy after the orientation change is lower, accept the change.
-            if energy_after <= energy_before:
-                num_accepted += 1
-            
-            # Otherwise, perform the Monte Carlo test.
-            else:
-                # Calculate the Boltzmann factor.
-                boltzmann = np.exp(-(energy_after - energy_before) / temperature)
-
-                # If the Boltzmann factor is greater than a random (uniform) number.
-                # Accept the orientation change.
-                if boltzmann >= mc_test_nums[i, j]:
-                    num_accepted += 1
-                
-                # Otherwise, undo the orientation change.
-                else:
-                    lattice[x_pos, y_pos] -= angle
-
-    return num_accepted / (lattice_length * lattice_length)
-
-
 def main(program_name, num_steps, lattice_length, temperature, plot_flag):
     """
     The main function of the program.
@@ -341,7 +257,7 @@ def main(program_name, num_steps, lattice_length, temperature, plot_flag):
     for i in range(1, num_steps + 1):
         # Perform a Monte Carlo step.
         # Get the acceptance ratio of the Monte Carlo step.
-        ratio[i] = monte_carlo_step(lattice, lattice_length, temperature)
+        ratio[i] = lebwohl_lasher_s_cython.monte_carlo_step(lattice, lattice_length, temperature)
 
         # Calculate the total energy and order parameter of the lattice.
         energy[i] = lebwohl_lasher_s_cython.total_energy(lattice, lattice_length)
