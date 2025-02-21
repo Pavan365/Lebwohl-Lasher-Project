@@ -40,6 +40,9 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Import the Cythonised module.
+import lebwohl_lasher_s_cython
+
 # Set a global random seed to test for consistent results across runs.
 # np.random.seed(42)
 
@@ -110,7 +113,7 @@ def plot_lattice(lattice, lattice_length, plot_flag):
         for i in range(lattice_length):
             for j in range(lattice_length):
                 # Calculate the energy of the cell.
-                colours[i,j] = cell_energy(lattice, lattice_length, i, j)
+                colours[i,j] = lebwohl_lasher_s_cython.cell_energy(lattice, lattice_length, i, j)
         
         # Normalise the colour map according to the minimum and maximum energy.
         norm = plt.Normalize(colours.min(), colours.max())
@@ -207,67 +210,6 @@ def save_data(lattice_length, num_steps, temperature, ratio, energy, order, runt
     file_out.close()
 
 
-def cell_energy(lattice, lattice_length, x_pos, y_pos):
-    """
-    Calculates the reduced energy of a single cell in the square lattice taking 
-    into account periodic boundary conditions. Equation 1 in the notes is used 
-    to calculate the energy which involves summing over contributions from the 
-    neighbouring cells.
-
-    + U_{reduced] = U / ε   where ε is set to 1.
-
-    Parameters
-    ----------
-    lattice : numpy.ndarray, float(lattice_length, lattice_length)
-      The array representing the cells in the square lattice.
-
-    lattice_length : int
-      The side length of the square lattice.
-
-    x_pos : int
-      The x-position of the cell in the square lattice.
-
-    y_pos : int
-      The y-position of the cell in the square lattice.
-
-    Returns
-    -------
-    energy : float
-      The reduced energy of the cell.
-    """
-
-    # Create a variable to store the energy.
-    energy = 0.0
-
-    # Store the positions of the neighbouring cells in the x-direction.
-    # Take into account wraparound.
-    x_pos_right = (x_pos + 1) % lattice_length
-    x_pos_left = (x_pos - 1) % lattice_length
-    
-    # Store the positions of the neighbouring cells in the y-direction.
-    # Take into account wraparound.
-    y_pos_above = (y_pos + 1) % lattice_length
-    y_pos_below = (y_pos - 1) % lattice_length
-
-    # Calculate the energy contribution from the cell to the right.
-    angle = lattice[x_pos, y_pos] - lattice[x_pos_right, y_pos]
-    energy += 0.5 * (1.0 - (3.0 * (np.cos(angle) ** 2)))
-
-    # Calculate the energy contribution from the cell to the left.
-    angle = lattice[x_pos, y_pos] - lattice[x_pos_left, y_pos]
-    energy += 0.5 * (1.0 - (3.0 * (np.cos(angle) ** 2)))
-
-    # Calculate the energy contribution from the cell above.
-    angle = lattice[x_pos, y_pos] - lattice[x_pos, y_pos_above]
-    energy += 0.5 * (1.0 - (3.0 * (np.cos(angle) ** 2)))
-
-    # Calculate the energy contribution from the cell below.
-    angle = lattice[x_pos, y_pos] - lattice[x_pos, y_pos_below]
-    energy += 0.5 * (1.0 - (3.0 * (np.cos(angle) ** 2)))
-    
-    return energy
-
-
 def total_energy(lattice, lattice_length):
     """
     Calculates the total reduced energy of the lattice.
@@ -295,7 +237,7 @@ def total_energy(lattice, lattice_length):
     for i in range(lattice_length):
         for j in range(lattice_length):
             # Calculate the energy of the cell.
-            energy += cell_energy(lattice, lattice_length, i, j)
+            energy += lebwohl_lasher_s_cython.cell_energy(lattice, lattice_length, i, j)
 
     return energy
 
@@ -400,13 +342,13 @@ def monte_carlo_step(lattice, lattice_length, temperature):
             angle = angles[i, j]
 
             # Calculate the energy of the cell before the orientation change.
-            energy_before = cell_energy(lattice, lattice_length, x_pos, y_pos)
+            energy_before = lebwohl_lasher_s_cython.cell_energy(lattice, lattice_length, x_pos, y_pos)
             
             # Change the orientation of the cell.
             lattice[x_pos, y_pos] += angle
 
             # Calculate the energy of the cell after the orientation change.
-            energy_after = cell_energy(lattice, lattice_length, x_pos, y_pos)
+            energy_after = lebwohl_lasher_s_cython.cell_energy(lattice, lattice_length, x_pos, y_pos)
             
             # If energy after the orientation change is lower, accept the change.
             if energy_after <= energy_before:
