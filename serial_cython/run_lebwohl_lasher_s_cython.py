@@ -210,38 +210,6 @@ def save_data(lattice_length, num_steps, temperature, ratio, energy, order, runt
     file_out.close()
 
 
-def total_energy(lattice, lattice_length):
-    """
-    Calculates the total reduced energy of the lattice.
-
-    + E_{reduced] = E / ε   where ε is set to 1.
-
-    Parameters
-    ----------
-    lattice : numpy.ndarray, float(lattice_length, lattice_length)
-      The array representing the cells in square lattice.
-
-    lattice_length : int
-      The side length of the square lattice.
-    
-    Returns
-    -------
-    energy : float
-      The total reduced energy of the lattice.
-    """
-
-    # Create a variable to store the total energy.
-    energy = 0.0
-
-    # Sum over the energy of each cell in the lattice.
-    for i in range(lattice_length):
-        for j in range(lattice_length):
-            # Calculate the energy of the cell.
-            energy += lebwohl_lasher_s_cython.cell_energy(lattice, lattice_length, i, j)
-
-    return energy
-
-
 def calculate_order(lattice, lattice_length):
     """
     Calculates the order parameter of the square lattice using the order tensor 
@@ -405,7 +373,7 @@ def main(program_name, num_steps, lattice_length, temperature, plot_flag):
     ratio = np.zeros(num_steps + 1, dtype=np.float64)
 
     # Calculate the initial energy and order of the lattice.
-    energy[0] = total_energy(lattice, lattice_length)
+    energy[0] = lebwohl_lasher_s_cython.total_energy(lattice, lattice_length)
     order[0] = calculate_order(lattice, lattice_length)
 
     # Set the initial acceptance ratio to 0.5, which is the "ideal" value.
@@ -421,7 +389,7 @@ def main(program_name, num_steps, lattice_length, temperature, plot_flag):
         ratio[i] = monte_carlo_step(lattice, lattice_length, temperature)
 
         # Calculate the total energy and order parameter of the lattice.
-        energy[i] = total_energy(lattice, lattice_length)
+        energy[i] = lebwohl_lasher_s_cython.total_energy(lattice, lattice_length)
         order[i] = calculate_order(lattice, lattice_length)
 
     # End the timer.

@@ -77,3 +77,40 @@ def cell_energy(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_length, i
     energy += cos(angle) ** 2
     
     return (4 - (3 * energy)) * 0.5
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def total_energy(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_length):
+    """
+    Calculates the total reduced energy of the lattice.
+
+    + E_{reduced] = E / ε   where ε is set to 1.
+
+    Parameters
+    ----------
+    lattice : numpy.ndarray, float(lattice_length, lattice_length)
+      The array representing the cells in square lattice.
+
+    lattice_length : int
+      The side length of the square lattice.
+    
+    Returns
+    -------
+    energy : float
+      The total reduced energy of the lattice.
+    """
+
+    # Create a variable to store the total energy.
+    cdef double energy = 0.0
+
+    # Define the iterating variables.
+    cdef int i, j
+
+    # Sum over the energy of each cell in the lattice.
+    for i in range(lattice_length):
+        for j in range(lattice_length):
+            # Calculate the energy of the cell.
+            energy += cell_energy(lattice, lattice_length, i, j)
+
+    return energy
