@@ -2,8 +2,9 @@
 
 # Import required libraries.
 cimport cython
+import numpy as np
 cimport numpy as cnp
-from libc.math cimport cos
+from libc.math cimport cos, sin
 
 # Initialise the Cython NumPy API.
 cnp.import_array()
@@ -114,3 +115,72 @@ def total_energy(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_length):
             energy += cell_energy(lattice, lattice_length, i, j)
 
     return energy
+
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
+@cython.cdivision(True)
+def calculate_order(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_length):
+    """
+    Calculates the order parameter of the square lattice using the order tensor 
+    approach as defined in equation 3 of the notes.
+
+    Parameters
+    ----------
+    lattice : numpy.ndarray, float(lattice_length, lattice_length)
+      The array representing the cells in the square lattice.
+      
+    lattice_length : int
+      The side length of the square lattice.
+
+    Returns
+    -------
+    float
+      The order parameter of the lattice.
+    """
+
+    # Create an array to store the order tensor.
+    cdef cnp.ndarray[cnp.double_t, ndim=2] order_tensor = np.zeros((3, 3))
+
+    # Define a view to the lattice.
+    cdef double[:, :] lattice_view = lattice
+
+    # Define a view to the order tensor.
+    cdef double[:, :] order_tensor_view = order_tensor
+
+    # Define variables to store the cosine and sine values of each cell's angle.
+    cdef double cos_theta, sin_theta
+    
+    # Define iterating variables.
+    cdef int i, j
+
+    # Loop through each cell in the lattice.
+    for i in range(lattice_length):
+      for j in range(lattice_length):
+        # Calculate the cosine and sine of the cell's angle.
+        cos_theta = cos(lattice_view[i, j])
+        sin_theta = sin(lattice_view[i, j])
+
+        # Calculate the diagonal terms.
+        order_tensor_view[0, 0] += cos_theta * cos_theta
+        order_tensor_view[1, 1] += sin_theta * sin_theta
+
+        # Calculate the off-diagonal term.
+        order_tensor_view[0, 1] += cos_theta * sin_theta
+
+    # Calculate the lattice size.
+    cdef int lattice_size = lattice_length * lattice_length
+
+    # Calculate the final diagonal terms.
+    order_tensor_view[0, 0] = ((3 * order_tensor_view[0, 0]) - lattice_size) / (2 * lattice_size)
+    order_tensor_view[1, 1] = ((3 * order_tensor_view[1, 1]) - lattice_size) / (2 * lattice_size)
+
+    # Calculate the final off-diagonal terms.
+    order_tensor_view[0, 1] = (3 * order_tensor_view[0, 1]) / (2 * lattice_size)
+    order_tensor_view[1, 0] = order_tensor_view[0, 1]
+
+    # Calculate the eigenvalues of the order tensor.
+    # Use the "np.linalg.eigh" as the order tensor is symmetric.
+    cdef cnp.ndarray[cnp.double_t, ndim=1] eigenvalues = np.linalg.eigh(order_tensor)[0]
+
+    return eigenvalues.max()

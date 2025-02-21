@@ -210,51 +210,6 @@ def save_data(lattice_length, num_steps, temperature, ratio, energy, order, runt
     file_out.close()
 
 
-def calculate_order(lattice, lattice_length):
-    """
-    Calculates the order parameter of the square lattice using the order tensor 
-    approach as defined in equation 3 of the notes.
-
-    Parameters
-    ----------
-    lattice : numpy.ndarray, float(lattice_length, lattice_length)
-      The array representing the cells in the square lattice.
-      
-    lattice_length : int
-      The side length of the square lattice.
-
-    Returns
-    -------
-    float
-      The order parameter of the lattice.
-    """
-
-    # Create an array to store the order tensor.
-    order_tensor = np.zeros((3,3))
-
-    # Create an array to represent the Kronecker delta.
-    kronecker_delta = np.eye(3,3)
-    
-    # Generate a 3D unit vector for each cell in the lattice.
-    l_ab = np.vstack((np.cos(lattice), np.sin(lattice), np.zeros_like(lattice))).reshape(3, lattice_length, lattice_length)
-
-    # Loop over each dimension.
-    for a in range(3):
-        for b in range(3):
-            # Loop through each cell in the lattice.
-            for i in range(lattice_length):
-                for j in range(lattice_length):
-                    # Calculate the order tensor term.
-                    order_tensor[a, b] += (3 * l_ab[a, i, j] * l_ab[b, i, j]) - kronecker_delta[a, b]
-   
-    # Normalise the order tensor.
-    # Calculate the eigenvalues and eigenvectors of the order tensor.
-    order_tensor = order_tensor / (2 * lattice_length * lattice_length)
-    eigenvalues, eigenvectors = np.linalg.eig(order_tensor)
-
-    return eigenvalues.max()
-
-
 def monte_carlo_step(lattice, lattice_length, temperature):
     """
     Performs a Monte Carlo step which attempts to change the orientation of 
@@ -374,7 +329,7 @@ def main(program_name, num_steps, lattice_length, temperature, plot_flag):
 
     # Calculate the initial energy and order of the lattice.
     energy[0] = lebwohl_lasher_s_cython.total_energy(lattice, lattice_length)
-    order[0] = calculate_order(lattice, lattice_length)
+    order[0] = lebwohl_lasher_s_cython.calculate_order(lattice, lattice_length)
 
     # Set the initial acceptance ratio to 0.5, which is the "ideal" value.
     ratio[0] = 0.5 
@@ -390,7 +345,7 @@ def main(program_name, num_steps, lattice_length, temperature, plot_flag):
 
         # Calculate the total energy and order parameter of the lattice.
         energy[i] = lebwohl_lasher_s_cython.total_energy(lattice, lattice_length)
-        order[i] = calculate_order(lattice, lattice_length)
+        order[i] = lebwohl_lasher_s_cython.calculate_order(lattice, lattice_length)
 
     # End the timer.
     # Calculate the runtime.
