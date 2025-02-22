@@ -11,7 +11,7 @@ cnp.import_array()
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-def cell_energy(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_length, int x_pos, int y_pos):
+cpdef double cell_energy(double[:, :] lattice, int lattice_length, int x_pos, int y_pos):
     """
     Calculates the reduced energy of a single cell in the square lattice taking 
     into account periodic boundary conditions. Equation 1 in the notes is used 
@@ -40,9 +40,6 @@ def cell_energy(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_length, i
       The reduced energy of the cell.
     """
 
-    # Define a view to the lattice.
-    cdef double[:, :] lattice_view = lattice
-
     # Store the positions of the neighbouring cells in the x-direction.
     # Take into account wraparound.
     cdef int x_pos_right = (x_pos + 1) % lattice_length
@@ -59,22 +56,22 @@ def cell_energy(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_length, i
     cdef double energy
     
     # Store the angle of the cell.
-    cdef double cell_angle = lattice_view[x_pos, y_pos]
+    cdef double cell_angle = lattice[x_pos, y_pos]
 
     # Calculate the energy contribution from the cell to the right.
-    angle = cell_angle - lattice_view[x_pos_right, y_pos]
+    angle = cell_angle - lattice[x_pos_right, y_pos]
     energy = cos(angle) ** 2
 
     # Calculate the energy contribution from the cell to the left.
-    angle = cell_angle - lattice_view[x_pos_left, y_pos]
+    angle = cell_angle - lattice[x_pos_left, y_pos]
     energy += cos(angle) ** 2
 
     # Calculate the energy contribution from the cell above.
-    angle = cell_angle - lattice_view[x_pos, y_pos_above]
+    angle = cell_angle - lattice[x_pos, y_pos_above]
     energy += cos(angle) ** 2
 
     # Calculate the energy contribution from the cell below.
-    angle = cell_angle - lattice_view[x_pos, y_pos_below]
+    angle = cell_angle - lattice[x_pos, y_pos_below]
     energy += cos(angle) ** 2
     
     return (4 - (3 * energy)) * 0.5
@@ -102,6 +99,9 @@ def total_energy(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_length):
       The total reduced energy of the lattice.
     """
 
+    # Define a view to the lattice.
+    cdef double[:, :] lattice_view = lattice
+
     # Create a variable to store the total energy.
     cdef double energy = 0.0
 
@@ -112,7 +112,7 @@ def total_energy(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_length):
     for i in range(lattice_length):
         for j in range(lattice_length):
             # Calculate the energy of the cell.
-            energy += cell_energy(lattice, lattice_length, i, j)
+            energy += cell_energy(lattice_view, lattice_length, i, j)
 
     return energy
 
@@ -261,13 +261,13 @@ def monte_carlo_step(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_leng
             angle = angles_view[i, j]
 
             # Calculate the energy of the cell before the orientation change.
-            energy_before = cell_energy(lattice, lattice_length, x_pos, y_pos)
+            energy_before = cell_energy(lattice_view, lattice_length, x_pos, y_pos)
             
             # Change the orientation of the cell.
             lattice_view[x_pos, y_pos] += angle
 
             # Calculate the energy of the cell after the orientation change.
-            energy_after = cell_energy(lattice, lattice_length, x_pos, y_pos)
+            energy_after = cell_energy(lattice_view, lattice_length, x_pos, y_pos)
             
             # If energy after the orientation change is lower, accept the change.
             if energy_after <= energy_before:
