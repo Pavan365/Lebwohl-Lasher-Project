@@ -301,7 +301,7 @@ def total_energy(lattice, lattice_length):
     return energy
 
 
-@numba.njit(cache=True)
+@numba.njit(cache=True, parallel=True)
 def calculate_order(lattice, lattice_length):
     """
     Calculates the order parameter of the square lattice using the order tensor 
@@ -328,7 +328,7 @@ def calculate_order(lattice, lattice_length):
     l_ab = np.vstack((np.cos(lattice), np.sin(lattice))).reshape(2, lattice_length, lattice_length)
 
     # Loop over each dimension.
-    for a in range(2):
+    for a in numba.prange(2):
         for b in range(2):
             # Loop through each cell in the lattice.
             for i in range(lattice_length):
