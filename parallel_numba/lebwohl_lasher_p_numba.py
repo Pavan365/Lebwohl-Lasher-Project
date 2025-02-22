@@ -41,8 +41,6 @@ import matplotlib.pyplot as plt
 import numba
 import numpy as np
 
-# Set a global random seed to test for consistent results across runs.
-# np.random.seed(42)
 
 def init_lattice(lattice_length):
     """
@@ -270,7 +268,7 @@ def cell_energy(lattice, lattice_length, x_pos, y_pos):
     return (4 - (3 * energy)) * 0.5
 
 
-@numba.njit(cache=True)
+@numba.njit(cache=True, parallel=True)
 def total_energy(lattice, lattice_length):
     """
     Calculates the total reduced energy of the lattice.
@@ -295,7 +293,7 @@ def total_energy(lattice, lattice_length):
     energy = 0.0
 
     # Sum over the energy of each cell in the lattice.
-    for i in range(lattice_length):
+    for i in numba.prange(lattice_length):
         for j in range(lattice_length):
             # Calculate the energy of the cell.
             energy += cell_energy(lattice, lattice_length, i, j)
