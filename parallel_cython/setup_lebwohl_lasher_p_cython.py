@@ -8,7 +8,8 @@ from setuptools.extension import Extension
 lebwohl_lasher_p_cython = Extension(
     name="lebwohl_lasher_p_cython",
     sources=["lebwohl_lasher_p_cython.pyx"],
-    extra_compile_args=["-O3", "-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION"],
+    extra_compile_args=["-O3", "-fopenmp", "-DNPY_NO_DEPRECATED_API=NPY_1_7_API_VERSION"],
+    extra_link_args=["-fopenmp"],
     include_dirs=[np.get_include()],  
 )
 

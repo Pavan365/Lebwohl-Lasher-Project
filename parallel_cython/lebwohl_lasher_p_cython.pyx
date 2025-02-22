@@ -2,6 +2,7 @@
 
 # Import required libraries.
 cimport cython
+from cython.parallel import prange
 import numpy as np
 cimport numpy as cnp
 from libc.math cimport cos, exp, sin
@@ -11,7 +12,7 @@ cnp.import_array()
 
 @cython.boundscheck(False)
 @cython.wraparound(False)
-cpdef double cell_energy(double[:, :] lattice, int lattice_length, int x_pos, int y_pos):
+cpdef double cell_energy(double[:, :] lattice, int lattice_length, int x_pos, int y_pos) nogil:
     """
     Calculates the reduced energy of a single cell in the square lattice taking 
     into account periodic boundary conditions. Equation 1 in the notes is used 
@@ -109,7 +110,7 @@ def total_energy(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_length):
     cdef int i, j
 
     # Sum over the energy of each cell in the lattice.
-    for i in range(lattice_length):
+    for i in prange(lattice_length, nogil=True):
         for j in range(lattice_length):
             # Calculate the energy of the cell.
             energy += cell_energy(lattice_view, lattice_length, i, j)
