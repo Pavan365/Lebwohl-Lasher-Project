@@ -155,29 +155,34 @@ def calculate_order(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_lengt
     # Define iterating variables.
     cdef int i, j
 
+    # Define variables to store the sum of order tensor terms in each thread.
+    # These will be private to each thread and reduced at the end, avoiding race conditions.
+    cdef double sum_00 = 0.0, sum_11 = 0.0, sum_01 = 0.0
+
     # Loop through each cell in the lattice.
-    for i in range(lattice_length):
+    for i in prange(lattice_length, nogil=True):
       for j in range(lattice_length):
         # Calculate the cosine and sine of the cell's angle.
         cos_theta = cos(lattice_view[i, j])
         sin_theta = sin(lattice_view[i, j])
 
         # Calculate the diagonal terms.
-        order_tensor_view[0, 0] += cos_theta * cos_theta
-        order_tensor_view[1, 1] += sin_theta * sin_theta
+        sum_00 += cos_theta * cos_theta
+        sum_11 += sin_theta * sin_theta
 
         # Calculate the off-diagonal term.
-        order_tensor_view[0, 1] += cos_theta * sin_theta
+        sum_01 += cos_theta * sin_theta
 
     # Calculate the lattice size.
     cdef int lattice_size = lattice_length * lattice_length
 
     # Calculate the final diagonal terms.
-    order_tensor_view[0, 0] = ((3 * order_tensor_view[0, 0]) - lattice_size) / (2 * lattice_size)
-    order_tensor_view[1, 1] = ((3 * order_tensor_view[1, 1]) - lattice_size) / (2 * lattice_size)
+    order_tensor_view[0, 0] = ((3 * sum_00) - lattice_size) / (2 * lattice_size)
+    order_tensor_view[1, 1] = ((3 * sum_11) - lattice_size) / (2 * lattice_size)
+    order_tensor_view[2, 2] = -(<double> lattice_size) / (2 * lattice_size)
 
     # Calculate the final off-diagonal terms.
-    order_tensor_view[0, 1] = (3 * order_tensor_view[0, 1]) / (2 * lattice_size)
+    order_tensor_view[0, 1] = (3 * sum_01) / (2 * lattice_size)
     order_tensor_view[1, 0] = order_tensor_view[0, 1]
 
     # Calculate the eigenvalues of the order tensor.
