@@ -33,15 +33,13 @@ Original Code: Dr Simon Hanna (2023-10-16)
 # Import standard libraries.
 import datetime
 import sys
-import time
 
 # Import 3rd party libraries. 
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from mpi4py import MPI
 import numpy as np
 
-# Set a global random seed to test for consistent results across runs.
-# np.random.seed(42)
 
 def init_lattice(lattice_length):
     """
@@ -203,10 +201,9 @@ def save_data(lattice_length, num_steps, temperature, ratio, energy, order, runt
     file_out.close()
 
 
-def lattice_energies(lattice, total=False):
+def lattice_energies(lattice):
     """
-    Calculates the reduced energy of all the cells in the lattice. The "total" 
-    flag can be set to True to return the total reduced energy of the lattice.
+    Calculates the reduced energy of all the cells in the lattice.
     
     + E_{reduced] = E / ε   where ε is set to 1.
 
@@ -214,20 +211,11 @@ def lattice_energies(lattice, total=False):
     ----------
     lattice : numpy.ndarray, float(lattice_length, lattice_length)
       The array representing the cells in square lattice.
-    
-    total : boolean, default = False
-      A flag to indicate whether to return the total reduced energy of the 
-      lattice (total = True) instead of the array containing the reduced energy 
-      of the cells in the lattice (total = False).
 
     Returns
     -------
     energies : numpy.ndarray, float(lattice_length, lattice_length)
-      The array containing the reduced energy of each cell in the lattice. If 
-      the "total" flag is False.
-
-    float
-      The total reduced energy of the lattice. If the "total" flag is True.
+      The array containing the reduced energy of each cell in the lattice.
     """
 
     # Calculate the energy contributions from the cells to the right.
@@ -249,29 +237,19 @@ def lattice_energies(lattice, total=False):
     # Calculate the energies.
     energies = (4 - (3 * energies)) * 0.5
 
-    # If the "total" flag is False.
-    # Return the array containing the reduced energy of each cell in the lattice. 
-    if not total:
-        return energies
-
-    # Otherwise, return the total energy of the lattice.
-    else:
-      return np.sum(energies)
+    return energies
 
 
-def calculate_order(lattice, lattice_length):
+def calculate_order(lattice):
     """
-    Calculates the order parameter of the square lattice using the order tensor 
+    Calculates the order parameter of the lattice using the order tensor 
     approach as defined in equation 3 of the notes.
 
     Parameters
     ----------
     lattice : numpy.ndarray, float(lattice_length, lattice_length)
-      The array representing the cells in the square lattice.
+      The array representing the cells in the lattice.
       
-    lattice_length : int
-      The side length of the square lattice.
-
     Returns
     -------
     float
@@ -285,7 +263,7 @@ def calculate_order(lattice, lattice_length):
     l_ab = np.array((np.cos(lattice), np.sin(lattice)))
 
     # Calculate the size of the lattice.
-    lattice_size = lattice_length * lattice_length
+    lattice_size = lattice.shape[0] * lattice.shape[1]
 
     # Calculate the x-x and y-y (diagonals) contributions to the order tensor.
     diagonals = 3 * l_ab * l_ab
@@ -373,12 +351,12 @@ def mc_step_worker(lattice, temperature, angles, mc_test_nums, mask):
     return accepted_mask.sum()
 
 
-def monte_carlo_step(lattice, lattice_length, temperature):
+def monte_carlo_step(lattice, temperature):
     """
     Performs a Monte Carlo step which attempts to change the orientation of 
     each cell in the lattice. The reduced temperature is used in the 
-    calculations. The function returns the acceptance ratio of the Monte Carlo 
-    step which represents the fraction of successful cell orientation changes.
+    calculations. The function returns the number of successful cell 
+    orientation changes.
 
     + T_{reduced} = kT / ε
 
@@ -387,37 +365,49 @@ def monte_carlo_step(lattice, lattice_length, temperature):
     lattice : numpy.ndarray, float(lattice_length, lattice_length)
       The array representing the cells in the square lattice.
 
-    lattice_length : int
-      The side length of the square lattice.
-
     temperature : float
       The reduced temperature, with a range between 0 and 2.
 
     Returns
     -------
-    float
-      The acceptance ratio for the Monte Carlo step.
+    int
+        The number of accepted orientation changes.
     """
 
     # Calculate the standard deviation of the distribution for angle changes.
     angle_std = temperature + 0.1
+
+    lattice_rows = lattice.shape[0]
+    lattice_columns = lattice.shape[1]
     
     # Generate the random angles for cell orientation changes.
-    angles = np.random.normal(scale=angle_std, size=(lattice_length, lattice_length))
+    angles = np.random.normal(scale=angle_std, size=(lattice_rows, lattice_columns))
     
     # Generate random, uniform distributed, numbers for the Monte Carlo test.
-    mc_test_nums = np.random.uniform(size=(lattice_length, lattice_length))
+    mc_test_nums = np.random.uniform(size=(lattice_rows, lattice_columns))
 
     # Create a checkerboard mask that selects cells which do not neighbour each other.
-    checkerboard_mask = np.indices((lattice_length, lattice_length)).sum(axis=0) % 2 == 0
+    checkerboard_mask = np.indices((lattice_rows, lattice_columns)).sum(axis=0) % 2 == 0
+
+    # Get the mask for the "white" squares.
+    # Set the first and last rows to False, as these rows contain the neighbouring rows.
+    white_squares = checkerboard_mask.copy()
+    white_squares[0] = False
+    white_squares[-1] = False
+
+    # Get the mask for the "black" squares.
+    # Set the first and last rows to False, as these rows contain the neighbouring rows.
+    black_squares = ~checkerboard_mask.copy()
+    black_squares[0] = False
+    black_squares[-1] = False
 
     # Perform the Monte Carlo step on the "white" squares/cells.
-    num_accepted_one = mc_step_worker(lattice, temperature, angles, mc_test_nums, checkerboard_mask) 
+    num_accepted_one = mc_step_worker(lattice, temperature, angles, mc_test_nums, white_squares) 
 
     # Perform the Monte Carlo step on the "black" squares/cells.
-    num_accepted_two = mc_step_worker(lattice, temperature, angles, mc_test_nums, ~checkerboard_mask)
+    num_accepted_two = mc_step_worker(lattice, temperature, angles, mc_test_nums, black_squares)
 
-    return (num_accepted_one + num_accepted_two) / (lattice_length * lattice_length)
+    return num_accepted_one + num_accepted_two
 
 
 def main(program_name, num_steps, lattice_length, temperature, plot_flag):
@@ -442,50 +432,230 @@ def main(program_name, num_steps, lattice_length, temperature, plot_flag):
       A flag to control which plot to generate.
     """
 
-    # Create and initialise the lattice.
-    lattice = init_lattice(lattice_length)
+    # Define the MPI communicator.
+    comm = MPI.COMM_WORLD
 
-    # Plot the initial lattice.
-    plot_lattice(lattice, lattice_length, plot_flag)
+    # Get the task IDs.
+    # Get the number of tasks.
+    task_id = comm.Get_rank()
+    num_tasks = comm.Get_size()
 
-    # Create arrays to store the total energy, order parameter and acceptance ratio.
-    energy = np.zeros(num_steps + 1, dtype=np.float64)
-    order = np.zeros(num_steps + 1, dtype=np.float64)
-    ratio = np.zeros(num_steps + 1, dtype=np.float64)
+    # Calculate the number of workers.
+    num_workers = num_tasks - 1
 
-    # Calculate the initial energy and order of the lattice.
-    energy[0] = lattice_energies(lattice, True)
-    order[0] = calculate_order(lattice, lattice_length)
+    # Define the minimum and maximum number of workers.
+    # The maximum number of workers is set such that each worker receives at least 5 rows.
+    MIN_WORKERS = 1
+    MAX_WORKERS = lattice_length // 5
 
-    # Set the initial acceptance ratio to 0.5, which is the "ideal" value.
-    ratio[0] = 0.5 
+    # Define the master task ID.
+    MASTER = 0
 
-    # Begin a timer.
-    start_time = time.time()
+    # Define the communication tags.
+    BEGIN = 1
+    WORKER_ABOVE = 2
+    WORKER_BELOW = 3
+    DONE = 4
 
-    # Perform a Monte Carlo simulation.
-    for i in range(1, num_steps + 1):
-        # Perform a Monte Carlo step.
-        # Get the acceptance ratio of the Monte Carlo step.
-        ratio[i] = monte_carlo_step(lattice, lattice_length, temperature)
+    # Give the master task its work.
+    if task_id == MASTER:
+        # If the number of workers are invalid, abort.
+        if num_workers < MIN_WORKERS or num_workers > MAX_WORKERS:
+            # Print an error message.
+            print("error: invalid number of workers")
+            comm.Abort()
+        
+        # Create and initialise the lattice.
+        master_lattice = init_lattice(lattice_length)
 
-        # Calculate the total energy and order parameter of the lattice.
-        energy[i] = lattice_energies(lattice, True)
-        order[i] = calculate_order(lattice, lattice_length)
+        # Plot the initial lattice.
+        plot_lattice(master_lattice, lattice_length, plot_flag)
 
-    # End the timer.
-    # Calculate the runtime.
-    end_time = time.time()
-    runtime = end_time - start_time
-    
-    # Output the final results.
-    print(f"{program_name}: Size: {lattice_length:d}, Steps: {num_steps:d}, T*: {temperature:5.3f}: Order: {order[num_steps - 1]:5.3f}, Time: {runtime:8.6f} s")
+        # Create an array to store the total energy (summed over workers).
+        master_energy = np.zeros(num_steps + 1, dtype=np.float64)
 
-    # Generate the output data file.
-    save_data(lattice_length, num_steps, temperature, ratio, energy, order, runtime)
+        # Create an array to store the order parameter (averaged over workers).
+        master_average_order = np.zeros(num_steps + 1, dtype=np.float64)
 
-    # Plot the final lattice.
-    plot_lattice(lattice, lattice_length, plot_flag)
+        # Create an array to store the acceptance ratio (calculated).
+        master_ratio = np.zeros(num_steps + 1, dtype=np.int32)
+
+        # Calculate the number of rows to send to each worker.
+        # Calculate the number of leftover rows.
+        num_rows = lattice_length // num_workers
+        extra_rows = lattice_length % num_workers
+
+        # Set the row-offset.
+        row_offset = 0
+
+        # Start a timer.
+        start_time = MPI.Wtime()
+
+        # Send each worker its block of the lattice.
+        for i in range(1, num_workers + 1):
+            # Set the final number of rows to send to the worker.
+            worker_rows = num_rows
+
+            # Take into account the leftover rows.
+            if i <= extra_rows:
+                worker_rows += 1
+
+            # Calculate the IDs of the neighbouring workers.
+            # If this is the first worker.
+            if i == 1:
+                worker_above = num_workers
+                worker_below = i + 1
+            
+            # If this is the last worker.
+            elif i == num_workers:
+                worker_above = i - 1
+                worker_below = 1
+            
+            # If this worker is neither the first or last.
+            else:
+                worker_above = i - 1
+                worker_below = i + 1
+
+            # Send the starting information to the worker.
+            # Send the worker its row-offset and the number of rows.
+            comm.send(row_offset, dest=i, tag=BEGIN)
+            comm.send(worker_rows, dest=i, tag=BEGIN)
+
+            # Send the worker the workers above and below it.
+            comm.send(worker_above, dest=i, tag=BEGIN)
+            comm.send(worker_below, dest=i, tag=BEGIN)
+            
+            # Send the worker its block of the lattice.
+            comm.Send(master_lattice[row_offset:(row_offset+worker_rows), :], dest=i, tag=BEGIN)
+
+            # Update the row-offset.
+            row_offset += worker_rows
+
+        # Wait for the results from each of the workers.
+        for i in range(1, num_tasks):
+            # Receive the final information.
+            # Receive the row-offset and number of rows of the worker.
+            row_offset = comm.recv(source=i, tag=DONE)
+            worker_rows = comm.recv(source=i, tag=DONE)
+
+            # Receive the worker's block of the lattice.
+            comm.Recv(master_lattice[row_offset:(row_offset+worker_rows), :], source=i, tag=DONE)
+
+        # Sum over worker-local total energy values.
+        # Sum over worker-local order parameter values.
+        # Sum over worker-local number of accepted cell orientation changes values.
+        comm.Reduce(None, master_energy, op=MPI.SUM, root=MASTER)
+        comm.Reduce(None, master_average_order, op=MPI.SUM, root=MASTER)
+        comm.Reduce(None, master_ratio, op=MPI.SUM, root=MASTER)
+
+        # Calculate the average order parameter.
+        master_average_order = master_average_order / num_workers
+
+        # Calculate the acceptance ratio.
+        master_ratio = master_ratio.astype(np.float64) / (lattice_length * lattice_length)
+        master_ratio[0] = 0.5
+
+        # End the timer.
+        end_time = MPI.Wtime()
+        runtime = end_time - start_time
+
+        # Plot the final lattice.
+        plot_lattice(master_lattice, lattice_length, plot_flag)
+
+        # Generate the output data file.
+        save_data(lattice_length, num_steps, temperature, master_ratio, master_energy, master_average_order, runtime)
+
+        # Output the final results.
+        print(f"{program_name}: Size: {lattice_length:d}, Steps: {num_steps:d}, T*: {temperature:5.3f}: Order: {master_average_order[-1]:5.3f}, Time: {runtime:8.6f} s")
+
+    # Give the worker tasks their work.
+    else:
+        # Receive the starting information.
+        # Receive the row-offset and the number of rows.
+        row_offset = comm.recv(source=MASTER, tag=BEGIN)
+        worker_rows = comm.recv(source=MASTER, tag=BEGIN)
+
+        # Receive the workers above and below.
+        worker_above = comm.recv(source=MASTER, tag=BEGIN)
+        worker_below = comm.recv(source=MASTER, tag=BEGIN)
+
+        # Create a worker-local lattice.
+        # Make this with an extra two rows so it can store the neighbouring rows (above and below).
+        worker_lattice = np.zeros((worker_rows + 2, lattice_length), dtype=np.float64)
+
+        # Receive the block of the lattice to work on.
+        comm.Recv([worker_lattice[1:-1, :], (worker_rows * lattice_length), MPI.DOUBLE], source=MASTER, tag=BEGIN)
+
+        # Open receiving channels first to avoid communication locks.
+        # Receive the neighbouring row above from the worker above.
+        # Receive the neighbouring row below from the worker below.
+        receive_row_above = comm.Irecv(worker_lattice[0, :], source=worker_above, tag=WORKER_ABOVE)
+        receive_row_below = comm.Irecv(worker_lattice[-1, :], source=worker_below, tag=WORKER_BELOW)
+
+        # Send the first row to the worker above.
+        # Send the final row to the worker below.
+        send_row_above = comm.Isend(worker_lattice[1, :], dest=worker_above, tag=WORKER_BELOW)
+        send_row_below = comm.Isend(worker_lattice[-2, :], dest=worker_below, tag=WORKER_ABOVE)
+
+        # Wait for all communications to finish.
+        MPI.Request.Waitall([receive_row_above, receive_row_below, send_row_above, send_row_below])
+
+        # Create an array to store the worker-local total energy.
+        worker_energy = np.zeros(num_steps + 1, dtype=np.float64)
+
+        # Initialise the first value.
+        # Exclude the neighbouring rows (above and below).
+        worker_energy[0] = np.sum(lattice_energies(worker_lattice)[1:-1])
+
+        # Create an array to store the worker-local order parameter.
+        worker_order = np.zeros(num_steps + 1, dtype=np.float64)
+
+        # Initialise the first value.
+        # Exclude the neighbouring rows (above and below).
+        worker_order[0] = calculate_order(worker_lattice[1:-1])
+
+        # Create an array to store the worker-local number of accepted cell orientation changes.
+        worker_accepted = np.zeros(num_steps + 1, dtype=np.int32)
+
+        # Perform Monte Carlo simulation.
+        for i in range(1, num_steps + 1):
+            # Perform a Monte Carlo step.
+            # Get the number of accepted cell orientation changes.
+            worker_accepted[i] = monte_carlo_step(worker_lattice, temperature)
+
+            # Calculate the total energy and order parameter of the lattice.
+            # Exclude the neighbouring rows (above and below).
+            worker_energy[i] = np.sum(lattice_energies(worker_lattice)[1:-1])
+            worker_order[i] = calculate_order(worker_lattice[1:-1])
+
+            # Open receiving channels first to avoid communication locks.
+            # Receive the neighbouring row above from the worker above.
+            # Receive the neighbouring row below from the worker below.
+            receive_row_above = comm.Irecv(worker_lattice[0, :], source=worker_above, tag=WORKER_ABOVE)
+            receive_row_below = comm.Irecv(worker_lattice[-1, :], source=worker_below, tag=WORKER_BELOW)
+
+            # Send the first row to the worker above.
+            # Send the final row to the worker below.
+            send_row_above = comm.Isend(worker_lattice[1, :], dest=worker_above, tag=WORKER_BELOW)
+            send_row_below = comm.Isend(worker_lattice[-2, :], dest=worker_below, tag=WORKER_ABOVE)
+
+            # Wait for all communications to finish.
+            MPI.Request.Waitall([receive_row_above, receive_row_below, send_row_above, send_row_below])
+
+        # Send the final information.
+        # Send the row-offset and the number of rows worked on.
+        comm.send(row_offset, dest=MASTER, tag=DONE)
+        comm.send(worker_rows, dest=MASTER, tag=DONE)
+
+        # Send the final state of the lattice block.
+        comm.Send(worker_lattice[1:-1, :], dest=MASTER, tag=DONE)
+
+        # Send the worker-local total energy values.
+        # Send the worker-local order parameter values.
+        # Send the worker-local number of accepted cell orientation changes values.
+        comm.Reduce(worker_energy, None, op=MPI.SUM, root=MASTER)
+        comm.Reduce(worker_order, None, op=MPI.SUM, root=MASTER)
+        comm.Reduce(worker_accepted, None, op=MPI.SUM, root=MASTER)
 
 
 if __name__ == "__main__":
