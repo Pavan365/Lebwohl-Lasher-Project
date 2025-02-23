@@ -229,20 +229,12 @@ def monte_carlo_step(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_leng
     # Create a variable to store the number of accepted to changes.
     cdef int num_accepted = 0
 
-    # Generate the positions in the lattice to visit.
-    cdef cnp.ndarray[int, ndim=2] x_positions = np.random.randint(0, high=lattice_length, size=(lattice_length, lattice_length), dtype=np.int32)
-    cdef cnp.ndarray[int, ndim=2] y_positions = np.random.randint(0, high=lattice_length, size=(lattice_length, lattice_length), dtype=np.int32)
-    
     # Generate the random angles for cell orientations.
     cdef cnp.ndarray[cnp.double_t, ndim=2] angles = np.random.normal(scale=angle_std, size=(lattice_length, lattice_length))
 
     # Generate random, uniform distributed, numbers for the Monte Carlo test.
     cdef cnp.ndarray[cnp.double_t, ndim=2] mc_test_nums = np.random.uniform(size=(lattice_length, lattice_length))
 
-    # Create memory-views to the arrays.
-    cdef int[:, :] x_positions_view = x_positions
-    cdef int[:, :] y_positions_view = y_positions
-    
     cdef double[:, :] angles_view = angles
     cdef double[:, :] mc_test_nums_view = mc_test_nums
 
@@ -253,44 +245,45 @@ def monte_carlo_step(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_leng
     cdef int i, j
 
     # Define variables used inside the loop.
-    cdef int x_pos, y_pos
     cdef double angle, energy_before, energy_after, boltzmann
 
-    # Attempt to change the orientation of each cell in the lattice.
-    for i in range(lattice_length):
-        for j in range(lattice_length):
-            # Get x and y position of the cell.
-            x_pos = x_positions_view[i, j]
-            y_pos = y_positions_view[i, j]
+    # Loop over the lattice in a checkerboard pattern.
+    # First update the "white" squares, then the "black" squares.
+    for parity in range(2):
+      # Attempt to change the orientation of each cell in the lattice.
+      for i in prange(lattice_length, nogil=True):
+          for j in range(lattice_length):
+              # Check the parity of the cell.
+              # If it matches the parity of the squares being updated, perform the Monte Carlo step.
+              if (i + j) % 2 == parity:
+                # Get the random angle.
+                angle = angles_view[i, j]
 
-            # Get the random angle.
-            angle = angles_view[i, j]
+                # Calculate the energy of the cell before the orientation change.
+                energy_before = cell_energy(lattice_view, lattice_length, i, j)
+                
+                # Change the orientation of the cell.
+                lattice_view[i, j] += angle
 
-            # Calculate the energy of the cell before the orientation change.
-            energy_before = cell_energy(lattice_view, lattice_length, x_pos, y_pos)
-            
-            # Change the orientation of the cell.
-            lattice_view[x_pos, y_pos] += angle
-
-            # Calculate the energy of the cell after the orientation change.
-            energy_after = cell_energy(lattice_view, lattice_length, x_pos, y_pos)
-            
-            # If energy after the orientation change is lower, accept the change.
-            if energy_after <= energy_before:
-                num_accepted += 1
-            
-            # Otherwise, perform the Monte Carlo test.
-            else:
-                # Calculate the Boltzmann factor.
-                boltzmann = exp(-(energy_after - energy_before) / temperature)
-
-                # If the Boltzmann factor is greater than a random (uniform) number.
-                # Accept the orientation change.
-                if boltzmann >= mc_test_nums_view[i, j]:
+                # Calculate the energy of the cell after the orientation change.
+                energy_after = cell_energy(lattice_view, lattice_length, i, j)
+                
+                # If energy after the orientation change is lower, accept the change.
+                if energy_after <= energy_before:
                     num_accepted += 1
                 
-                # Otherwise, undo the orientation change.
+                # Otherwise, perform the Monte Carlo test.
                 else:
-                    lattice_view[x_pos, y_pos] -= angle
+                    # Calculate the Boltzmann factor.
+                    boltzmann = exp(-(energy_after - energy_before) / temperature)
+
+                    # If the Boltzmann factor is greater than a random (uniform) number.
+                    # Accept the orientation change.
+                    if boltzmann >= mc_test_nums_view[i, j]:
+                        num_accepted += 1
+                    
+                    # Otherwise, undo the orientation change.
+                    else:
+                        lattice_view[i, j] -= angle
 
     return (<double> num_accepted) / (lattice_length * lattice_length)
