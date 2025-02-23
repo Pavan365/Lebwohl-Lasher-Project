@@ -174,6 +174,7 @@ def calculate_order(cnp.ndarray[cnp.double_t, ndim=2] lattice, int lattice_lengt
     # Calculate the final diagonal terms.
     order_tensor_view[0, 0] = ((3 * order_tensor_view[0, 0]) - lattice_size) / (2 * lattice_size)
     order_tensor_view[1, 1] = ((3 * order_tensor_view[1, 1]) - lattice_size) / (2 * lattice_size)
+    order_tensor_view[2, 2] = -(<double> lattice_size) / (2 * lattice_size)
 
     # Calculate the final off-diagonal terms.
     order_tensor_view[0, 1] = (3 * order_tensor_view[0, 1]) / (2 * lattice_size)
