@@ -329,22 +329,27 @@ def calculate_order(lattice, lattice_length):
     # Generate a 2D unit vector for each cell in the lattice.
     l_ab = np.vstack((np.cos(lattice), np.sin(lattice))).reshape(2, lattice_length, lattice_length)
 
-    # Loop over each dimension.
-    for a in range(2):
-        for b in range(2):
-            # Loop through each cell in the lattice.
-            for i in range(lattice_length):
-                for j in range(lattice_length):
-                    # Calculate the order tensor term.
-                    order_tensor[a, b] += 3 * l_ab[a, i, j] * l_ab[b, i, j]
+    # Loop through each cell in the lattice.
+    for i in range(lattice_length):
+        for j in range(lattice_length):
+            # Calculate the diagonal terms.
+            order_tensor[0, 0] += l_ab[0, i, j] * l_ab[0, i, j]
+            order_tensor[1, 1] += l_ab[1, i, j] * l_ab[1, i, j]
+
+            # Calculate the off-diagonal term.
+            order_tensor[0, 1] += l_ab[0, i, j] * l_ab[1, i, j] 
 
     # Calculate the size of the lattice.
     lattice_size = lattice_length * lattice_length
 
-    # Calculate the diagonal terms.
-    order_tensor[0, 0] -= lattice_size
-    order_tensor[1, 1] -= lattice_size
+    # Calculate the final diagonal terms.
+    order_tensor[0, 0] = (3 * order_tensor[0, 0]) - lattice_size
+    order_tensor[1, 1] = (3 * order_tensor[1, 1]) - lattice_size
     order_tensor[2, 2] = -lattice_size
+
+    # Calculate the final off-diagonal terms.
+    order_tensor[0, 1] *= 3
+    order_tensor[1, 0] = order_tensor[0, 1]
    
     # Normalise the order tensor.
     order_tensor = order_tensor / (2 * lattice_size)
