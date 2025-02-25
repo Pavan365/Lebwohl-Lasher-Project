@@ -444,9 +444,9 @@ def main(program_name, num_steps, lattice_length, temperature, plot_flag):
     num_workers = num_tasks - 1
 
     # Define the minimum and maximum number of workers.
-    # The maximum number of workers is set such that each worker receives at least 5 rows.
-    MIN_WORKERS = 1
-    MAX_WORKERS = lattice_length // 5
+    # The maximum number of workers is set such that each worker receives at least 2 rows.
+    MIN_WORKERS = 2
+    MAX_WORKERS = lattice_length // 2
 
     # Define the master task ID.
     MASTER = 0
@@ -532,7 +532,7 @@ def main(program_name, num_steps, lattice_length, temperature, plot_flag):
             row_offset += worker_rows
 
         # Wait for the results from each of the workers.
-        for i in range(1, num_tasks):
+        for i in range(1, num_workers + 1):
             # Receive the final information.
             # Receive the row-offset and number of rows of the worker.
             row_offset = comm.recv(source=i, tag=DONE)
