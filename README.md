@@ -5,8 +5,8 @@
 This is the codebase for the accelerated computing project of accelerating 
 Monte Carlo simulations of a 2D Lebwohl Lasher model. This GitHub repo contains 
 various versions of the original <code>lebwohl_lasher.py</code> script, which 
-has been accelerated using various methods such as <code>NumPy</code>, <code>
-Numba</code>, <code>Cython</code> and <code>MPI</code>. 
+has been accelerated using various methods such as <code>NumPy</code>, 
+<code>Numba</code>, <code>Cython</code> and <code>MPI</code>. 
 </p>
 
 <p align="justify">
@@ -76,5 +76,5 @@ methods listed before and the performance of each method has been measured.
 
 ## Files
 
-+ ```./environment.yaml```: Contains the local conda environment used when developing this project.
++ ```./environment.yaml```: Contains the local conda environment used for developing this project.
 + ```./README.md```: This README file.
